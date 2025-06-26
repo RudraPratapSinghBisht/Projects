@@ -1,0 +1,143 @@
+import re
+import os
+import pandas as pd
+import matplotlib.pyplot as plt
+from datetime import datetime
+
+
+class Task:
+    def __init__(self, description, priority=3, due_date=None, category="General"):
+        self.description = description.strip()
+        self.priority = priority
+        self.created_at = datetime.now()
+        self.completed = False
+        self.category = category
+        self.due_date = due_date
+
+    def mark_done(self):
+        self.completed = True
+
+    def __str__(self):
+        status = "✓" if self.completed else "✗"
+        due = f" | Due: {self.due_date.strftime('%Y-%m-%d')}" if self.due_date else ""
+        return f"[{status}] {self.description} (Priority: {self.priority}, Category: {self.category}{due})"
+
+
+class ToDoList:
+    def __init__(self):
+        self.tasks = []
+
+    def add_task(self, description, priority=3, due_date=None, category="General"):
+        if not description: raise ValueError("Task description required")
+        if due_date:
+            try:
+                due_date = datetime.strptime(due_date, "%Y-%m-%d")
+            except ValueError:
+                due_date = None
+        self.tasks.append(Task(description, priority, due_date, category))
+
+    def show_tasks(self, filter_regex=None):
+        print("\nTasks:")
+        for idx, task in enumerate(self.tasks, 1):
+            if not filter_regex or re.search(filter_regex, task.description, re.IGNORECASE):
+                print(f"{idx}. {task}")
+
+    def mark_done(self, index):
+        if 0 <= index < len(self.tasks):
+            self.tasks[index].mark_done()
+            print("Task marked done!")
+        else:
+            print("Invalid task number")
+
+    def remove_task(self, index):
+        if 0 <= index < len(self.tasks):
+            print(f"Removed: {self.tasks.pop(index).description}")
+        else:
+            print("Invalid task number")
+
+    def save_to_csv(self, filename="todo_list.csv"):
+        pd.DataFrame([{
+            "description": t.description,
+            "priority": t.priority,
+            "category": t.category,
+            "completed": t.completed,
+            "created_at": t.created_at,
+            "due_date": t.due_date
+        } for t in self.tasks]).to_csv(filename, index=False)
+        print(f"Saved {len(self.tasks)} tasks to {filename}")
+
+    def load_from_csv(self, filename="todo_list.csv"):
+        if os.path.exists(filename):
+            df = pd.read_csv(filename, parse_dates=['created_at', 'due_date'])
+            self.tasks = [Task(
+                row['description'],
+                row['priority'],
+                row['due_date'],
+                row['category']
+            ) for _, row in df.iterrows()]
+            print(f"Loaded {len(self.tasks)} tasks")
+
+    def analytics(self):
+        df = pd.DataFrame([{
+            "priority": t.priority,
+            "category": t.category,
+            "completed": t.completed
+        } for t in self.tasks])
+
+        print(f"\nTotal: {len(df)}, Completed: {df['completed'].sum()}")
+        print("Priority Distribution:\n", df['priority'].value_counts().sort_index())
+
+        plt.figure(figsize=(10, 4))
+        plt.subplot(121)
+        df['priority'].value_counts().sort_index().plot.bar(color='skyblue')
+        plt.subplot(122)
+        df['category'].value_counts().plot.pie(autopct='%1.1f%%')
+        plt.tight_layout()
+        plt.show()
+
+    def sort_tasks(self, by="priority"):
+        sort_keys = {
+            "priority": lambda t: t.priority,
+            "due_date": lambda t: t.due_date or datetime.max,
+            "created_at": lambda t: t.created_at
+        }
+        self.tasks.sort(key=sort_keys.get(by, lambda t: t.priority))
+        print(f"Sorted by {by}")
+
+
+def main():
+    todo = ToDoList()
+    while True:
+        print("\n1. Add 2. Show 3. Done 4. Remove 5. Save 6. Load 7. Analytics 8. Sort 9. Exit")
+        try:
+            choice = int(input("Choice: "))
+            if choice == 1:
+                todo.add_task(
+                    input("Description: "),
+                    int(input("Priority (1-5): ") or 3),
+                    input("Due (YYYY-MM-DD): "),
+                    input("Category: ") or "General"
+                )
+            elif choice == 2:
+                todo.show_tasks(input("Filter regex: "))
+            elif choice == 3:
+                todo.mark_done(int(input("Task number: ")) - 1)
+            elif choice == 4:
+                todo.remove_task(int(input("Task number: ")) - 1)
+            elif choice == 5:
+                todo.save_to_csv(input("Filename: ") or "todo_list.csv")
+            elif choice == 6:
+                todo.load_from_csv(input("Filename: ") or "todo_list.csv")
+            elif choice == 7:
+                todo.analytics()
+            elif choice == 8:
+                todo.sort_tasks(input("Sort by (priority/due_date/created_at): ") or "priority")
+            elif choice == 9:
+                print("Exiting...")
+                break
+        except ValueError:
+            print("Invalid input")
+
+
+if __name__ == "__main__":
+    main()
